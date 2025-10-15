@@ -50,11 +50,13 @@ typedef struct {
     size_t capacity;
 } da_window_t;
 
-void windows_logln(da_window_t windows) {
+void windows_logln(da_window_t windows, Window current) {
     log("[");
     da_foreach(window_t, win, &windows) {
+        if (win->id == -1) continue;
         log(
-            "%d-%s%s ",
+            "%s%d-%s%s ",
+            win->id == current ? "*" : " ",
             win->id,
             win->is_mapped     ? "M" : "_",
             win->is_configured ? "C" : "_"
@@ -125,7 +127,7 @@ int main() {
                 p_win = find_window(windows, e.xconfigurerequest.window);
                 if (p_win == NULL) {
                     log("ERROR: window (%d) not found in ", e.xconfigurerequest.window);
-                    windows_logln(windows);
+                    windows_logln(windows, current_win);
                     break;
                 } else if (p_win->is_configured) {
                     log("WARNING: window (%d) already configured", e.xconfigurerequest.window);
@@ -140,7 +142,7 @@ int main() {
                 p_win = find_window(windows, e.xdestroywindow.window);
                 if (p_win == NULL) {
                     log("ERROR: window (%d) not found in ", e.xdestroywindow.window);
-                    windows_logln(windows);
+                    windows_logln(windows, current_win);
                     break;
                 } else if (!p_win->is_mapped) {
                     log("WARNING: window (%d) is not mapped", e.xdestroywindow.window);
@@ -148,8 +150,35 @@ int main() {
                 }
 
                 logln("    destroy %d", p_win->id);
-                p_win->is_mapped = false;
+                p_win->id            = -1;
+                p_win->is_mapped     = false;
                 p_win->is_configured = false;
+
+                current_idx = (p_win - windows.items + 1) % windows.count;
+                new_idx = -1;
+
+                log("looking for window after %d in ", p_win->id);
+                windows_logln(windows, current_win);
+                while (true) {
+                    if (windows.items[current_idx].is_mapped) {
+                        new_idx = current_idx;
+                        break;
+                    }
+                    if (windows.items[current_idx].id == current_win) {
+                        break;
+                    }
+                    current_idx = (current_idx + 1) % windows.count;
+                }
+                if (new_idx == -1 || windows.items[new_idx].id == current_win) {
+                    logln("ERROR: could not find any other active window after %d", current_win);
+                    break;
+                }
+                logln("INFO: found %d", windows.items[current_idx].id);
+
+                current_win = windows.items[current_idx].id;
+
+                XCirculateSubwindowsUp(d, r);
+                xwindow_focus(current_win, 2, 0);
 
                 break;
             case KeyPress:
@@ -160,7 +189,7 @@ int main() {
                         p_win = find_window(windows, current_win);
                         if (p_win == NULL) {
                             log("ERROR: current window (%d) not found in ", current_win);
-                            windows_logln(windows);
+                            windows_logln(windows, current_win);
                             break;
                         } else if (!p_win->is_mapped) {
                             logln("ERROR: current window (%d) is not mapped", current_win);
@@ -171,7 +200,7 @@ int main() {
                         new_idx = -1;
 
                         log("looking for window after %d in ", p_win->id);
-                        windows_logln(windows);
+                        windows_logln(windows, current_win);
                         while (true) {
                             if (windows.items[current_idx].is_mapped) {
                                 new_idx = current_idx;
@@ -199,20 +228,23 @@ int main() {
                         p_win = find_window(windows, current_win);
                         if (p_win == NULL) {
                             log("ERROR: current window (%d) not found in ", current_win);
-                            windows_logln(windows);
+                            windows_logln(windows, current_win);
                             break;
                         } else if (!p_win->is_mapped) {
                             logln("ERROR: current window (%d) is not mapped", current_win);
                             break;
                         }
 
-                        xwindow_kill(current_win);
+                        xwindow_kill(p_win->id);
+                        p_win->id            = -1;
+                        p_win->is_mapped     = false;
+                        p_win->is_configured = false;
 
                         current_idx = (p_win - windows.items + 1) % windows.count;
                         new_idx = -1;
 
                         log("looking for window after %d in ", p_win->id);
-                        windows_logln(windows);
+                        windows_logln(windows, current_win);
                         while (true) {
                             if (windows.items[current_idx].is_mapped) {
                                 new_idx = current_idx;
@@ -250,8 +282,7 @@ int main() {
                 break;
         }
 
-        log("%d ", current_win);
-        windows_logln(windows);
+        windows_logln(windows, current_win);
     }
 
     XCloseDisplay(d);
