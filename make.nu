@@ -1,32 +1,43 @@
-const STARTX = $nu.home-path | path join "documents/github.com/lslvr/startx/startx"
-
-const SRC  = "llwm.c"
-const EXEC = "./build/llwm"
+const BUILD_DIR = "./build/"
 
 const CC = "gcc"
 const CFLAGS = [ "-Wno-trigraphs" ]
 const LDFLAGS = [ "-lX11" ]
+const DDEFS = [ "DEBUG" ]
 
 def --wrapped cmd-run [cmd, ...args] {
     print $"($cmd) ($args | str join ' ')"
     run-external $cmd ...$args
 }
 
-export def build [
-    src: string = $SRC,
-    --output (-o): string = $EXEC,
+export def compile [
+    ...src: string,
     --cc: string = $CC,
     --cflags: list<string> = $CFLAGS,
     --ldflags: list<string> = $LDFLAGS,
+    --ddefs: list<string> = $DDEFS,
 ] {
-    if not ($EXEC | path dirname | path exists) {
-        print $"mkdir ($EXEC | path dirname)"
-        mkdir ($EXEC | path dirname)
+    if not ($BUILD_DIR | path exists) {
+        print $"mkdir ($BUILD_DIR)"
+        mkdir $BUILD_DIR
     }
-    cmd-run $cc ...$cflags -o $output $src ...$ldflags -DDEBUG
+
+    for s in $src {
+        let output = $s | path parse | update parent "build" | update extension "o" | path join
+        cmd-run $cc ...$cflags -c -o $output $s ...$ldflags ...($ddefs | each { $"-D($in)" })
+    }
 }
 
-export def run [] { cmd-run $STARTX $EXEC }
+export def link [
+    ...objs: string,
+    --output: string = "a.out",
+    --cc: string = $CC,
+    --cflags: list<string> = $CFLAGS,
+    --ldflags: list<string> = $LDFLAGS,
+    --ddefs: list<string> = $DDEFS,
+] {
+    cmd-run $cc ...$cflags -o $output ...$objs ...$ldflags ...($ddefs | each { $"-D($in)" })
+}
 
 alias "core kill" = kill
 export def kill  [] {
