@@ -1,0 +1,19 @@
+CompileFlags:
+  Add: [
+    -Wno-trigraphs,
+    # added with
+    # ```
+    # gcc -E -x c++ - -v out> /dev/null err> gcc-include-dirs.txt
+    # ```
+    # and then
+    # ```
+    # open gcc-include-dirs.txt | lines | split list "#include <...> search starts here:" | get 1 | parse " {path}" | get path
+    # ```
+    -I/usr/include/c++/12,
+    -I/usr/include/aarch64-linux-gnu/c++/12,
+    -I/usr/include/c++/12/backward,
+    -I/usr/lib/gcc/aarch64-linux-gnu/12/include,
+    -I/usr/local/include,
+    -I/usr/include/aarch64-linux-gnu,
+    -I/usr/include,
+  ]
