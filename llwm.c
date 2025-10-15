@@ -17,7 +17,8 @@ XEvent e;
 
 typedef struct {
     Window id;
-    bool is_init;
+    bool is_mapped;
+    bool is_configured;
 } window_t;
 
 void xwindow_map(Window win, int revert_to, Time time);
@@ -49,12 +50,25 @@ typedef struct {
     size_t capacity;
 } da_window_t;
 
-void windows_println(da_window_t windows) {
+void windows_logln(da_window_t windows) {
     log("[");
     da_foreach(window_t, win, &windows) {
-        log("%d%s ", win->id, win->is_init ? "*" : "");
+        log(
+            "%d-%s%s ",
+            win->id,
+            win->is_mapped     ? "M" : "_",
+            win->is_configured ? "C" : "_"
+        );
     }
     logln("]");
+}
+
+window_t *find_window(da_window_t windows, Window id) {
+    da_foreach(window_t, win, &windows) {
+        if (win->id == id) return win;
+    }
+
+    return NULL;
 }
 
 int string_to_keycode(const char *key) { return XKeysymToKeycode(d, XStringToKeysym(key)); }
@@ -68,7 +82,9 @@ int main() {
     r = DefaultRootWindow(d);
 
     da_window_t windows = {0};
+    Window current_win;
     Window id;
+    window_t *p_win;
 
     logln("display: %d", d);
     logln("root   : %d", r);
@@ -88,76 +104,133 @@ int main() {
             case MapRequest:
                 id = e.xmaprequest.window;
 
-                bool already_in = false;
-                da_foreach(window_t, win, &windows) {
-                    if (win->id == id) already_in = true;
-                }
-                if (already_in) {
-                    logln("WARNING: window (%d) already in", id);
+                p_win = find_window(windows, id);
+                if (p_win != NULL && p_win->is_mapped) {
+                    logln("WARNING: window (%d) already in and mapped", id);
                     break;
                 }
 
-                window_t win = { .id = id, .is_init = false };
+                window_t win = { .id = id, .is_mapped = true, .is_configured = false };
                 xwindow_map(win.id, 2, 0);
                 da_append(&windows, win);
-
-                windows_println(windows);
+                current_win = win.id;
 
                 break;
             case ConfigureRequest:
                 id = e.xconfigurerequest.window;
 
-                bool found = false;
-                window_t *requested;
-                da_foreach(window_t, win, &windows) {
-                    if (win->id == id) {
-                        found = true;
-                        requested = win;
-                        break;
-                    }
-                }
-                if (!found) {
+                p_win = find_window(windows, id);
+                if (p_win == NULL) {
                     log("ERROR: window (%d) not found in ", id);
-                    windows_println(windows);
+                    windows_logln(windows);
                     break;
-                } else if (requested->is_init) {
+                } else if (p_win->is_configured) {
                     log("WARNING: window (%d) already configured", id);
                     break;
                 }
 
-                xwindow_configure(requested->id, 0, 0, 1920, 1080);
-                requested->is_init = true;
-
-                windows_println(windows);
+                xwindow_configure(p_win->id, 0, 0, 1920, 1080);
+                p_win->is_configured = true;
 
                 break;
             case DestroyNotify:
-                // if (e.xdestroywindow.window == my_window.id) {
-                //     logln("    destroy %d", my_window.id);
-                //     my_window = window_empty();
-                // }
+                id = e.xdestroywindow.window;
+
+                p_win = find_window(windows, id);
+                if (p_win == NULL) {
+                    log("ERROR: window (%d) not found in ", id);
+                    windows_logln(windows);
+                    break;
+                } else if (!p_win->is_mapped) {
+                    log("WARNING: window (%d) is not mapped", id);
+                    break;
+                }
+
+                logln("    destroy %d", p_win->id);
+                p_win->is_mapped = false;
+                p_win->is_configured = false;
+
                 break;
             case KeyPress:
                 switch (e.xkey.keycode) {
                     case X11_n:
                         logln("n");
-                        // if (!window_is_ready(my_window)) {
-                        //     logln("    no window");
-                        //     break;
-                        // }
-                        //
-                        // XCirculateSubwindowsUp(d, r);
-                        // xwindow_focus(my_window, 2, 0);
+                        id = current_win;
+
+                        p_win = find_window(windows, id);
+                        if (p_win == NULL) {
+                            log("ERROR: current window (%d) not found in ", id);
+                            windows_logln(windows);
+                            break;
+                        } else if (!p_win->is_mapped) {
+                            log("ERROR: current window (%d) is not mapped", id);
+                            break;
+                        }
+
+                        size_t current_idx = (p_win - windows.items + 1) % windows.count;
+                        size_t new_idx = -1;
+
+                        log("looking for window after %d in ", p_win->id);
+                        windows_logln(windows);
+                        while (true) {
+                            if (windows.items[current_idx].is_mapped) {
+                                new_idx = current_idx;
+                                break;
+                            }
+                            if (windows.items[current_idx].id == current_win) {
+                                break;
+                            }
+                            current_idx = (current_idx + 1) % windows.count;
+                        }
+                        if (new_idx == -1) {
+                            logln("ERROR: could not find any other active window after %d", current_win);
+                            break;
+                        }
+                        logln("INFO: found %d", windows.items[current_idx].id);
+
+                        current_win = windows.items[current_idx].id;
+
+                        XCirculateSubwindowsUp(d, r);
+                        xwindow_focus(current_win, 2, 0);
                         break;
                     case X11_q:
                         logln("q");
-                        // if (!window_is_ready(my_window)) {
-                        //     logln("    no window");
-                        //     break;
-                        // }
-                        //
-                        // xwindow_kill(my_window);
-                        // my_window = window_empty();
+                        id = current_win;
+
+                        p_win = find_window(windows, id);
+                        if (p_win == NULL) {
+                            log("ERROR: current window (%d) not found in ", id);
+                            windows_logln(windows);
+                            break;
+                        } else if (!p_win->is_mapped) {
+                            log("ERROR: current window (%d) is not mapped", id);
+                            break;
+                        }
+
+                        xwindow_kill(current_win);
+
+                        log("looking for window after %d in ", p_win->id);
+                        windows_logln(windows);
+                        while (true) {
+                            if (windows.items[current_idx].is_mapped) {
+                                new_idx = current_idx;
+                                break;
+                            }
+                            if (windows.items[current_idx].id == current_win) {
+                                break;
+                            }
+                            current_idx = (current_idx + 1) % windows.count;
+                        }
+                        if (new_idx == -1) {
+                            logln("ERROR: could not find any other active window after %d", current_win);
+                            break;
+                        }
+                        logln("INFO: found %d", windows.items[current_idx].id);
+
+                        current_win = windows.items[current_idx].id;
+
+                        XCirculateSubwindowsUp(d, r);
+                        xwindow_focus(current_win, 2, 0);
 
                         break;
                     case X11_t:
@@ -174,6 +247,8 @@ int main() {
                 }
                 break;
         }
+
+        windows_logln(windows);
     }
 
     XCloseDisplay(d);
