@@ -1,3 +1,5 @@
+#pragma once
+
 #define X11_null                     8
 #define X11_Escape                   9 // Escape NoSymbol Escape
 #define X11_1                       10 // 1 exclam 1 exclam
