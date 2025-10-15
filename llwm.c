@@ -86,6 +86,9 @@ int main() {
     Window id;
     window_t *p_win;
 
+    // used to search for indices in arrays
+    size_t current_idx, new_idx;
+
     logln("display: %d", d);
     logln("root   : %d", r);
 
@@ -102,30 +105,30 @@ int main() {
         xevent_logln(e);
         switch (e.type) {
             case MapRequest:
-                id = e.xmaprequest.window;
-
-                p_win = find_window(windows, id);
+                p_win = find_window(windows, e.xmaprequest.window);
                 if (p_win != NULL && p_win->is_mapped) {
-                    logln("WARNING: window (%d) already in and mapped", id);
+                    logln("WARNING: window (%d) already in and mapped", e.xmaprequest.window);
                     break;
                 }
 
-                window_t win = { .id = id, .is_mapped = true, .is_configured = false };
+                window_t win = {
+                    .id            = e.xmaprequest.window,
+                    .is_mapped     = true,
+                    .is_configured = false,
+                };
                 xwindow_map(win.id, 2, 0);
                 da_append(&windows, win);
                 current_win = win.id;
 
                 break;
             case ConfigureRequest:
-                id = e.xconfigurerequest.window;
-
-                p_win = find_window(windows, id);
+                p_win = find_window(windows, e.xconfigurerequest.window);
                 if (p_win == NULL) {
-                    log("ERROR: window (%d) not found in ", id);
+                    log("ERROR: window (%d) not found in ", e.xconfigurerequest.window);
                     windows_logln(windows);
                     break;
                 } else if (p_win->is_configured) {
-                    log("WARNING: window (%d) already configured", id);
+                    log("WARNING: window (%d) already configured", e.xconfigurerequest.window);
                     break;
                 }
 
@@ -134,15 +137,13 @@ int main() {
 
                 break;
             case DestroyNotify:
-                id = e.xdestroywindow.window;
-
-                p_win = find_window(windows, id);
+                p_win = find_window(windows, e.xdestroywindow.window);
                 if (p_win == NULL) {
-                    log("ERROR: window (%d) not found in ", id);
+                    log("ERROR: window (%d) not found in ", e.xdestroywindow.window);
                     windows_logln(windows);
                     break;
                 } else if (!p_win->is_mapped) {
-                    log("WARNING: window (%d) is not mapped", id);
+                    log("WARNING: window (%d) is not mapped", e.xdestroywindow.window);
                     break;
                 }
 
@@ -155,20 +156,19 @@ int main() {
                 switch (e.xkey.keycode) {
                     case X11_n:
                         logln("n");
-                        id = current_win;
 
-                        p_win = find_window(windows, id);
+                        p_win = find_window(windows, current_win);
                         if (p_win == NULL) {
-                            log("ERROR: current window (%d) not found in ", id);
+                            log("ERROR: current window (%d) not found in ", current_win);
                             windows_logln(windows);
                             break;
                         } else if (!p_win->is_mapped) {
-                            log("ERROR: current window (%d) is not mapped", id);
+                            logln("ERROR: current window (%d) is not mapped", current_win);
                             break;
                         }
 
-                        size_t current_idx = (p_win - windows.items + 1) % windows.count;
-                        size_t new_idx = -1;
+                        current_idx = (p_win - windows.items + 1) % windows.count;
+                        new_idx = -1;
 
                         log("looking for window after %d in ", p_win->id);
                         windows_logln(windows);
@@ -182,7 +182,7 @@ int main() {
                             }
                             current_idx = (current_idx + 1) % windows.count;
                         }
-                        if (new_idx == -1) {
+                        if (new_idx == -1 || windows.items[new_idx].id == current_win) {
                             logln("ERROR: could not find any other active window after %d", current_win);
                             break;
                         }
@@ -195,19 +195,21 @@ int main() {
                         break;
                     case X11_q:
                         logln("q");
-                        id = current_win;
 
-                        p_win = find_window(windows, id);
+                        p_win = find_window(windows, current_win);
                         if (p_win == NULL) {
-                            log("ERROR: current window (%d) not found in ", id);
+                            log("ERROR: current window (%d) not found in ", current_win);
                             windows_logln(windows);
                             break;
                         } else if (!p_win->is_mapped) {
-                            log("ERROR: current window (%d) is not mapped", id);
+                            logln("ERROR: current window (%d) is not mapped", current_win);
                             break;
                         }
 
                         xwindow_kill(current_win);
+
+                        current_idx = (p_win - windows.items + 1) % windows.count;
+                        new_idx = -1;
 
                         log("looking for window after %d in ", p_win->id);
                         windows_logln(windows);
@@ -221,7 +223,7 @@ int main() {
                             }
                             current_idx = (current_idx + 1) % windows.count;
                         }
-                        if (new_idx == -1) {
+                        if (new_idx == -1 || windows.items[new_idx].id == current_win) {
                             logln("ERROR: could not find any other active window after %d", current_win);
                             break;
                         }
@@ -248,6 +250,7 @@ int main() {
                 break;
         }
 
+        log("%d ", current_win);
         windows_logln(windows);
     }
 
