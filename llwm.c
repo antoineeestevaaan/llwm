@@ -14,7 +14,6 @@ XEvent e;
 
 typedef struct {
     Window id;
-    int x, y, w, h;
     bool is_init;
 } window_t;
 
@@ -80,10 +79,6 @@ int main() {
                 logln("    XMoveResizeWindow(%d, %d, %d, %d, %d)", win, x, y, w, h);
                 XMoveResizeWindow(d, win, x, y, w, h);
 
-                my_window.x = x;
-                my_window.y = y;
-                my_window.w = w;
-                my_window.h = h;
                 my_window.is_init = true;
 
                 break;
