@@ -66,8 +66,6 @@ int main() {
     grab_key(Super, "t");
     grab_key(Super, "z");
 
-    Window win;
-
     bool running = true;
 
     while (!XNextEvent(d, &e) && running) {
