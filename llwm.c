@@ -5,6 +5,9 @@
 #include "x/xkeycodes.h"
 #include "x/events.h"
 #include "macros.h"
+#define NOB_IMPLEMENTATION
+#define NOB_STRIP_PREFIX
+#include "thirdparty/nob.h"
 
 #define Super Mod4Mask
 
@@ -17,31 +20,41 @@ typedef struct {
     bool is_init;
 } window_t;
 
-window_t window_empty();
-bool window_is_ready(window_t win);
-void window_map(window_t win, int revert_to, Time time);
-void window_configure(window_t win, int x, int y, int w, int h);
-void window_kill(window_t win);
-void window_focus(window_t win, int revert_to, Time time);
+void xwindow_map(Window win, int revert_to, Time time);
+void xwindow_configure(Window win, int x, int y, int w, int h);
+void xwindow_kill(Window win);
+void xwindow_focus(Window win, int revert_to, Time time);
 
-window_t window_empty() { return (window_t){ .id=-1, .is_init=false }; }
-bool window_is_ready(window_t win) { return win.id != -1 && win.is_init; }
-void window_map(window_t win, int revert_to, Time time) {
-    logln("    XMapWindow(%d)", win.id);
-    XMapWindow(d, win.id);
-    window_focus(win, revert_to, time);
+void xwindow_map(Window win, int revert_to, Time time) {
+    logln("    XMapWindow(%d)", win);
+    XMapWindow(d, win);
+    xwindow_focus(win, revert_to, time);
 }
-void window_configure(window_t win, int x, int y, int w, int h) {
-    logln("    XMoveResizeWindow(%d, %d, %d, %d, %d)", win.id, x, y, w, h);
-    XMoveResizeWindow(d, win.id, x, y, w, h);
+void xwindow_configure(Window win, int x, int y, int w, int h) {
+    logln("    XMoveResizeWindow(%d, %d, %d, %d, %d)", win, x, y, w, h);
+    XMoveResizeWindow(d, win, x, y, w, h);
 }
-void window_kill(window_t win) {
-    logln("    XKillClient(%d)", win.id);
-    XKillClient(d, win.id);
+void xwindow_kill(Window win) {
+    logln("    XKillClient(%d)", win);
+    XKillClient(d, win);
 }
-void window_focus(window_t win, int revert_to, Time time) {
-    logln("    XSetInputFocus(%d, %d, %d)", win.id, revert_to, time);
-    XSetInputFocus(d, win.id, revert_to, time);
+void xwindow_focus(Window win, int revert_to, Time time) {
+    logln("    XSetInputFocus(%d, %d, %d)", win, revert_to, time);
+    XSetInputFocus(d, win, revert_to, time);
+}
+
+typedef struct {
+    window_t *items;
+    size_t count;
+    size_t capacity;
+} da_window_t;
+
+void windows_println(da_window_t windows) {
+    log("[");
+    da_foreach(window_t, win, &windows) {
+        log("%d%s ", win->id, win->is_init ? "*" : "");
+    }
+    logln("]");
 }
 
 int string_to_keycode(const char *key) { return XKeysymToKeycode(d, XStringToKeysym(key)); }
@@ -54,7 +67,8 @@ int main() {
     d = XOpenDisplay(0);
     r = DefaultRootWindow(d);
 
-    window_t my_window = window_empty();
+    da_window_t windows = {0};
+    Window id;
 
     logln("display: %d", d);
     logln("root   : %d", r);
@@ -72,61 +86,78 @@ int main() {
         xevent_print(e);
         switch (e.type) {
             case MapRequest:
-                if (window_is_ready(my_window)) {
-                    logln("    already a window (%d)", my_window.id);
+                id = e.xmaprequest.window;
+
+                bool already_in = false;
+                da_foreach(window_t, win, &windows) {
+                    if (win->id == id) already_in = true;
+                }
+                if (already_in) {
+                    logln("WARNING: window (%d) already in", id);
                     break;
                 }
 
-                my_window.id = e.xmaprequest.window;
-                window_map(my_window, 2, 0);
+                window_t win = { .id = id, .is_init = false };
+                xwindow_map(win.id, 2, 0);
+                da_append(&windows, win);
+
+                windows_println(windows);
 
                 break;
             case ConfigureRequest:
-                if (window_is_ready(my_window)) {
-                    logln("    already a window (%d)", my_window.id);
+                id = e.xconfigurerequest.window;
+
+                bool found = false;
+                window_t *requested;
+                da_foreach(window_t, win, &windows) {
+                    if (win->id == id) {
+                        found = true;
+                        requested = win;
+                        break;
+                    }
+                }
+                if (!found) {
+                    log("ERROR: window (%d) not found in ", id);
+                    windows_println(windows);
+                    break;
+                } else if (requested->is_init) {
+                    log("WARNING: window (%d) already configured", id);
                     break;
                 }
 
-                if (my_window.id != e.xconfigurerequest.window) {
-                    logln(
-                        "    requested window (%d) different than current window (%d)",
-                        e.xconfigurerequest.window,
-                        my_window.id
-                    );
-                    break;
-                }
+                xwindow_configure(requested->id, 0, 0, 1920, 1080);
+                requested->is_init = true;
 
-                window_configure(my_window, 0, 0, 1920, 1080);
-                my_window.is_init = true;
+                windows_println(windows);
 
                 break;
             case DestroyNotify:
-                if (e.xdestroywindow.window == my_window.id) {
-                    logln("    destroy %d", my_window.id);
-                    my_window = window_empty();
-                }
+                // if (e.xdestroywindow.window == my_window.id) {
+                //     logln("    destroy %d", my_window.id);
+                //     my_window = window_empty();
+                // }
                 break;
             case KeyPress:
                 switch (e.xkey.keycode) {
                     case X11_n:
                         logln("n");
-                        if (!window_is_ready(my_window)) {
-                            logln("    no window");
-                            break;
-                        }
-
-                        XCirculateSubwindowsUp(d, r);
-                        window_focus(my_window, 2, 0);
+                        // if (!window_is_ready(my_window)) {
+                        //     logln("    no window");
+                        //     break;
+                        // }
+                        //
+                        // XCirculateSubwindowsUp(d, r);
+                        // xwindow_focus(my_window, 2, 0);
                         break;
                     case X11_q:
                         logln("q");
-                        if (!window_is_ready(my_window)) {
-                            logln("    no window");
-                            break;
-                        }
-
-                        window_kill(my_window);
-                        my_window = window_empty();
+                        // if (!window_is_ready(my_window)) {
+                        //     logln("    no window");
+                        //     break;
+                        // }
+                        //
+                        // xwindow_kill(my_window);
+                        // my_window = window_empty();
 
                         break;
                     case X11_t:
