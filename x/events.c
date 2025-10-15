@@ -1,7 +1,8 @@
 #include <X11/Xlib.h>
 #include "../macros.h"
+#include "events.h"
 
-void xevent_print(XEvent e) {
+void xevent_logln(XEvent e) {
     switch (e.type) {
         case ConfigureRequest:
             logln(

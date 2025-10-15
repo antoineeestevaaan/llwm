@@ -83,7 +83,7 @@ int main() {
     bool running = true;
 
     while (!XNextEvent(d, &e) && running) {
-        xevent_print(e);
+        xevent_logln(e);
         switch (e.type) {
             case MapRequest:
                 id = e.xmaprequest.window;
