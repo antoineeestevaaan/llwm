@@ -3,7 +3,7 @@ const BUILD_DIR = "./build/"
 const CC = "gcc"
 const CFLAGS = [ "-Wno-trigraphs" ]
 const LDFLAGS = [ "-lX11" ]
-const DDEFS = [ "DEBUG" ]
+const DDEFS = [ "-DDEBUG" ]
 
 def --wrapped cmd-run [cmd, ...args] {
     print $"($cmd) ($args | str join ' ')"
@@ -24,7 +24,7 @@ export def compile [
 
     for s in $src {
         let output = $s | path parse | update parent "build" | update extension "o" | path join
-        cmd-run $cc ...$cflags -c -o $output $s ...$ldflags ...($ddefs | each { $"-D($in)" })
+        cmd-run $cc ...$cflags -c -o $output $s ...$ldflags ...$ddefs
     }
 }
 
@@ -36,7 +36,7 @@ export def link [
     --ldflags: list<string> = $LDFLAGS,
     --ddefs: list<string> = $DDEFS,
 ] {
-    cmd-run $cc ...$cflags -o $output ...$objs ...$ldflags ...($ddefs | each { $"-D($in)" })
+    cmd-run $cc ...$cflags -o $output ...$objs ...$ldflags ...$ddefs
 }
 
 alias "core kill" = kill
