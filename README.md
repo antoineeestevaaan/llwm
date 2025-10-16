@@ -2,16 +2,14 @@
 use make.nu
 ```
 ```nushell
-make compile llwm.c x/events.c
-make link build/llwm.o build/events.o
+make compile llwm.c x/events.c | make link --output build/llwm.out
 ```
 ```nushell
-./startx ./build/llwm
+./startx ./build/llwm.out
 ```
 
 ## tests
 ```
-make compile ll.c test_ll.c
-make link build/ll.o build/test_ll.o --output build/test_ll.out
+make compile ll.c test_ll.c | make link --output build/test_ll.out
 ./build/test_ll.out
 ```

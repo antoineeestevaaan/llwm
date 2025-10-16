@@ -16,15 +16,16 @@ export def compile [
     --cflags: list<string> = $CFLAGS,
     --ldflags: list<string> = $LDFLAGS,
     --ddefs: list<string> = $DDEFS,
-] {
+]: [ nothing -> list<string> ] {
     if not ($BUILD_DIR | path exists) {
         print $"mkdir ($BUILD_DIR)"
         mkdir $BUILD_DIR
     }
 
-    for s in $src {
+    $src | each { |s|
         let output = $s | path parse | update parent "build" | update extension "o" | path join
         cmd-run $cc ...$cflags -c -o $output $s ...$ldflags ...$ddefs
+        $output
     }
 }
 
@@ -35,8 +36,11 @@ export def link [
     --cflags: list<string> = $CFLAGS,
     --ldflags: list<string> = $LDFLAGS,
     --ddefs: list<string> = $DDEFS,
+]: [
+    list<string> -> nothing,
+    nothing -> nothing,
 ] {
-    cmd-run $cc ...$cflags -o $output ...$objs ...$ldflags ...$ddefs
+    cmd-run $cc ...$cflags -o $output ...($in | default [] | append $objs) ...$ldflags ...$ddefs
 }
 
 alias "core kill" = kill
