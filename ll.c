@@ -5,6 +5,7 @@
 #include "ll.h"
 
 ll_cell_t* cycle_init(void) { return NULL; }
+bool       cycle_is_empty(ll_cell_t *cycle){ return cycle == NULL; }
 
 void cycle_insert(ll_cell_t **cycle, int value) {
     ll_cell_t *new_cell = malloc(sizeof(ll_cell_t));

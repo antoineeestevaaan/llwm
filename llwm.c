@@ -99,7 +99,7 @@ int main() {
 
                 cycle_remove(&windows);
                 XCirculateSubwindowsUp(d, r);
-                if (!(windows == cycle_init())) xwindow_focus(windows->value, 2, 0);
+                if (!cycle_is_empty(windows)) xwindow_focus(windows->value, 2, 0);
 
                 break;
             case KeyPress:
@@ -109,7 +109,7 @@ int main() {
 
                         cycle_forward(&windows);
                         XCirculateSubwindowsUp(d, r);
-                        xwindow_focus(windows->value, 2, 0);
+                        if (!cycle_is_empty(windows)) xwindow_focus(windows->value, 2, 0);
 
                         break;
                     case X11_q:
@@ -117,7 +117,7 @@ int main() {
 
                         cycle_remove(&windows);
                         XCirculateSubwindowsUp(d, r);
-                        if (!(windows == cycle_init())) xwindow_focus(windows->value, 2, 0);
+                        if (!cycle_is_empty(windows)) xwindow_focus(windows->value, 2, 0);
 
                         break;
                     case X11_t:
@@ -134,6 +134,8 @@ int main() {
                 }
                 break;
         }
+
+        cycle_print(windows);
     }
 
     XCloseDisplay(d);
