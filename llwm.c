@@ -75,6 +75,13 @@ int main() {
 
                 break;
             case ConfigureRequest:
+                if (cycle_is_empty(windows)) {
+                    logln(
+                        "WARNING: could not find window (%d) in empty cycle",
+                        e.xconfigurerequest.window
+                    );
+                    break;
+                }
                 if (windows->value != e.xconfigurerequest.window) {
                     logln(
                         "ERROR: current window (%d) is not the same as requested (%d)",
@@ -88,6 +95,13 @@ int main() {
 
                 break;
             case DestroyNotify:
+                if (cycle_is_empty(windows)) {
+                    logln(
+                        "WARNING: could not find window (%d) in empty cycle",
+                        e.xdestroywindow.window
+                    );
+                    break;
+                }
                 if (windows->value != e.xdestroywindow.window) {
                     logln(
                         "ERROR: current window (%d) is not the same as requested (%d)",
