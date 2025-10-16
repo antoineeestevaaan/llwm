@@ -76,7 +76,7 @@ int main() {
                 break;
             case ConfigureRequest:
                 if (windows->value != e.xconfigurerequest.window) {
-                    log(
+                    logln(
                         "ERROR: current window (%d) is not the same as requested (%d)",
                         windows->value,
                         e.xconfigurerequest.window
@@ -89,7 +89,7 @@ int main() {
                 break;
             case DestroyNotify:
                 if (windows->value != e.xdestroywindow.window) {
-                    log(
+                    logln(
                         "ERROR: current window (%d) is not the same as requested (%d)",
                         windows->value,
                         e.xdestroywindow.window
