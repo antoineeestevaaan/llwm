@@ -115,6 +115,7 @@ int main() {
                     case X11_q:
                         logln("q");
 
+                        if (!cycle_is_empty(windows)) xwindow_kill(windows->value);
                         cycle_remove(&windows);
                         XCirculateSubwindowsUp(d, r);
                         if (!cycle_is_empty(windows)) xwindow_focus(windows->value, 2, 0);
